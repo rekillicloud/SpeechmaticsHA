@@ -5,7 +5,7 @@
   "documentation": "https://github.com/speechmatics/speechmatics-python-sdk",
   "issue_tracker": "https://github.com/speechmatics/speechmatics-python-sdk/issues",
   "codeowners": [],
-  "requirements": ["speechmatics-rt>=1.0.0"],
+  "requirements": ["speechmatics-rt>=0.5.0"],
   "dependencies": ["stt"],
   "iot_class": "cloud_push",
   "config_flow": true,

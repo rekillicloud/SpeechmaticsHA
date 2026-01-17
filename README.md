@@ -10,7 +10,7 @@
 
 - Home Assistant 2024.x или выше
 - API ключ от Speechmatics (получить можно на [speechmatics.com](https://www.speechmatics.com))
-- Python пакет `speechmatics-rt` (устанавливается автоматически)
+- Python пакет `speechmatics-rt>=0.5.0` (устанавливается автоматически при первой загрузке компонента)
 
 ## Установка
 
