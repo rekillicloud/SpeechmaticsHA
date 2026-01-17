@@ -26,6 +26,7 @@ from speechmatics.rt import (
     AsyncClient,
     AudioEncoding,
     AudioFormat,
+    JWTAuth,
     OperatingPoint,
     ServerMessageType,
     TranscriptResult,
@@ -165,8 +166,9 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
                 sample_rate=metadata.sample_rate or 16000,
             )
 
-            # AsyncClient в версии 0.5.3 принимает API ключ напрямую
-            async with AsyncClient(self._api_key) as client:
+            # Создаем объект аутентификации для AsyncClient
+            auth = JWTAuth(self._api_key, ttl=60)
+            async with AsyncClient(auth=auth) as client:
                 transcript_future = asyncio.Future()
 
                 @client.on(ServerMessageType.ADD_TRANSCRIPT)
