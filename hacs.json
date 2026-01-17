@@ -1,0 +1,7 @@
+{
+  "name": "Speechmatics STT",
+  "content_in_root": false,
+  "domains": ["stt"],
+  "homeassistant": "2024.1.0",
+  "render_readme": true
+}

@@ -14,7 +14,19 @@
 
 ## Установка
 
-### Способ 1: Через UI (Config Flow)
+### Способ 1: Через HACS (рекомендуется)
+
+**Важно:** Если вы получаете ошибку `The version 4dfecc5 for this integration can not be used with HACS`, см. [HACS_INSTALLATION.md](HACS_INSTALLATION.md) для решения проблемы.
+
+1. Убедитесь, что у вас установлен HACS
+2. Создайте GitHub репозиторий и загрузите код
+3. Создайте релиз с тегом `v1.0.0` (соответствует версии в manifest.json)
+4. В HACS: **Интеграции** → **⋮** → **Custom repositories**
+5. Добавьте URL вашего GitHub репозитория, категория: **Integration**
+6. Установите интеграцию через HACS
+7. Перезапустите Home Assistant
+
+### Способ 2: Ручная установка (без HACS)
 
 1. Скопируйте папку `custom_components/speechmatics_stt` в директорию `custom_components` вашего Home Assistant
 2. Перезапустите Home Assistant
@@ -22,7 +34,7 @@
 4. Найдите "Speechmatics STT" и следуйте инструкциям
 5. Введите API ключ и настройте параметры
 
-### Способ 2: Через YAML
+### Способ 3: Через YAML
 
 Добавьте в `configuration.yaml`:
 

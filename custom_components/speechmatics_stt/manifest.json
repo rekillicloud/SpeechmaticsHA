@@ -8,5 +8,6 @@
   "requirements": ["speechmatics-rt>=1.0.0"],
   "dependencies": ["stt"],
   "iot_class": "cloud_push",
-  "config_flow": true
+  "config_flow": true,
+  "after_dependencies": ["stt"]
 }
