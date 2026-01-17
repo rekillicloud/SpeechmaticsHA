@@ -26,7 +26,6 @@ from speechmatics.rt import (
     AsyncClient,
     AudioEncoding,
     AudioFormat,
-    ConnectionSettings,
     OperatingPoint,
     ServerMessageType,
     TranscriptResult,
@@ -166,14 +165,8 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
                 sample_rate=metadata.sample_rate or 16000,
             )
 
-            # Создаем ConnectionSettings для AsyncClient
-            # Блокирующие SSL операции будут выполнены внутри AsyncClient
-            connection_settings = ConnectionSettings(
-                url="wss://eu2.rt.speechmatics.com/v2",
-                auth_token=self._api_key,
-            )
-            
-            async with AsyncClient(connection_settings) as client:
+            # AsyncClient в версии 0.5.3 принимает API ключ напрямую
+            async with AsyncClient(self._api_key) as client:
                 transcript_future = asyncio.Future()
 
                 @client.on(ServerMessageType.ADD_TRANSCRIPT)
