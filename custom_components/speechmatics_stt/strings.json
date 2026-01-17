@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Speechmatics STT Configuration",
+        "description": "Configure Speechmatics Speech-to-Text integration",
+        "data": {
+          "api_key": "API Key",
+          "language": "Language",
+          "operating_point": "Operating Point",
+          "max_delay": "Max Delay (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_api_key": "Invalid API key provided",
+      "unknown": "Unknown error occurred"
+    },
+    "abort": {
+      "already_configured": "Integration is already configured"
+    }
+  }
+}

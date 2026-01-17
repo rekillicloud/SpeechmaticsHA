@@ -1,0 +1,12 @@
+{
+  "domain": "speechmatics_stt",
+  "name": "Speechmatics STT",
+  "version": "1.0.0",
+  "documentation": "https://github.com/speechmatics/speechmatics-python-sdk",
+  "issue_tracker": "https://github.com/speechmatics/speechmatics-python-sdk/issues",
+  "codeowners": [],
+  "requirements": ["speechmatics-rt>=1.0.0"],
+  "dependencies": ["stt"],
+  "iot_class": "cloud_push",
+  "config_flow": true
+}
