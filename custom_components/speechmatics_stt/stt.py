@@ -133,12 +133,12 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
 
         _LOGGER.debug(
             "Processing audio stream: language=%s, format=%s, codec=%s, "
-            "sample_rate=%s, channels=%s",
+            "sample_rate=%s, channel=%s",
             metadata.language,
             metadata.format,
             metadata.codec,
             metadata.sample_rate,
-            metadata.channels,
+            metadata.channel,
         )
 
         transcript_parts = []
