@@ -45,6 +45,7 @@ async def async_setup_platform(
         return
 
     entity = SpeechmaticsSTTEntity(
+        hass=hass,
         api_key=api_key,
         language=language,
         operating_point=operating_point,

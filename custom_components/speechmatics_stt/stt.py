@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from homeassistant.components.stt import (
@@ -54,6 +57,7 @@ async def async_setup_entry(
     config = config_entry.data
 
     entity = SpeechmaticsSTTEntity(
+        hass=hass,
         api_key=config["api_key"],
         language=config.get("language", DEFAULT_LANGUAGE),
         operating_point=config.get("operating_point", DEFAULT_OPERATING_POINT),
@@ -68,12 +72,14 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
 
     def __init__(
         self,
+        hass: HomeAssistant,
         api_key: str,
         language: str = DEFAULT_LANGUAGE,
         operating_point: str = DEFAULT_OPERATING_POINT,
         max_delay: float = DEFAULT_MAX_DELAY,
     ) -> None:
         """Initialize Speechmatics STT entity."""
+        self.hass = hass
         self._api_key = api_key
         self._language = language
         self._operating_point = operating_point
@@ -85,6 +91,11 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
         if not api_key or len(api_key) < 10:
             _LOGGER.warning("Invalid API key provided")
             self._attr_available = False
+
+        # Создаем папку для сохранения записей
+        self._recordings_dir = Path(hass.config.path("share")) / "speechmatics_recordings"
+        self._recordings_dir.mkdir(parents=True, exist_ok=True)
+        _LOGGER.info("Recordings will be saved to: %s", self._recordings_dir)
 
     @property
     def supported_languages(self) -> list[str]:
@@ -146,7 +157,18 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
         error_message = None
         result_state = SpeechResultState.SUCCESS
 
+        # Подготовка для сохранения аудио записи
+        audio_chunks = []
+        recording_file = None
+        sample_rate = metadata.sample_rate or 16000
+        channels = metadata.channel or 1
+
         try:
+            # Создаем имя файла с timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            recording_filename = f"recording_{timestamp}.wav"
+            recording_path = self._recordings_dir / recording_filename
+            _LOGGER.info("Saving audio recording to: %s", recording_path)
             operating_point_enum = (
                 OperatingPoint.ENHANCED
                 if self._operating_point == "enhanced"
@@ -175,15 +197,18 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
                 def handle_final_transcript(message: dict) -> None:
                     """Handle final transcript message."""
                     try:
+                        _LOGGER.debug("Received ADD_TRANSCRIPT message: %s", message)
                         result = TranscriptResult.from_message(message)
                         transcript = result.metadata.transcript
                         if transcript:
-                            _LOGGER.debug("Received final transcript: %s", transcript)
+                            _LOGGER.info("Received final transcript: %s", transcript)
                             transcript_parts.append(transcript)
                             if not transcript_future.done():
                                 transcript_future.set_result(transcript)
+                        else:
+                            _LOGGER.warning("Received transcript message but transcript is empty")
                     except Exception as e:
-                        _LOGGER.error("Error processing transcript: %s", e)
+                        _LOGGER.error("Error processing transcript: %s", e, exc_info=True)
                         if not transcript_future.done():
                             transcript_future.set_exception(e)
 
@@ -216,16 +241,41 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
 
                     _LOGGER.debug("Session started, streaming audio...")
 
+                    chunk_count = 0
+                    total_bytes = 0
                     async for chunk in stream:
                         if chunk:
                             await client.send_audio(chunk)
+                            # Сохраняем чанк для записи в файл
+                            audio_chunks.append(chunk)
+                            chunk_count += 1
+                            total_bytes += len(chunk)
+                            if chunk_count % 100 == 0:
+                                _LOGGER.debug(
+                                    "Sent %d audio chunks (%d bytes total)",
+                                    chunk_count,
+                                    total_bytes,
+                                )
 
-                    _LOGGER.debug("Audio stream finished, waiting for final transcript...")
+                    _LOGGER.info(
+                        "Audio stream finished: %d chunks, %d bytes total. Waiting for final transcript...",
+                        chunk_count,
+                        total_bytes,
+                    )
 
+                    # Даем время Speechmatics обработать последние данные
+                    await asyncio.sleep(0.5)
+
+                    # Даем больше времени на получение транскрипта
+                    # Учитываем, что Speechmatics может обрабатывать аудио после завершения потока
                     try:
-                        await asyncio.wait_for(transcript_future, timeout=10.0)
+                        await asyncio.wait_for(transcript_future, timeout=30.0)
+                        _LOGGER.debug("Transcript received successfully")
                     except asyncio.TimeoutError:
-                        _LOGGER.warning("Timeout waiting for final transcript")
+                        _LOGGER.warning(
+                            "Timeout waiting for final transcript after %d chunks",
+                            chunk_count,
+                        )
                         result_state = SpeechResultState.ERROR
                         error_message = "Timeout waiting for transcription"
 
@@ -254,6 +304,17 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
             _LOGGER.error("Error in async_process_audio_stream: %s", e, exc_info=True)
             result_state = SpeechResultState.ERROR
             error_message = str(e)
+        finally:
+            # Сохраняем аудио запись даже при ошибках
+            if audio_chunks and recording_path:
+                try:
+                    await self._save_audio_recording(
+                        recording_path, audio_chunks, sample_rate, channels
+                    )
+                except Exception as save_error:
+                    _LOGGER.error(
+                        "Error saving audio recording: %s", save_error, exc_info=True
+                    )
 
         final_text = " ".join(transcript_parts).strip()
 
@@ -275,3 +336,61 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
             text=final_text,
             result=result_state,
         )
+
+    async def _save_audio_recording(
+        self,
+        file_path: Path,
+        audio_chunks: list[bytes],
+        sample_rate: int,
+        channels: int,
+    ) -> None:
+        """Save audio recording to WAV file."""
+        try:
+            # Используем executor для блокирующей операции записи файла
+            def write_wav_file():
+                import struct
+
+                # Объединяем все чанки
+                audio_data = b"".join(audio_chunks)
+
+                # WAV заголовок
+                # RIFF header
+                file_size = 36 + len(audio_data)
+                wav_header = struct.pack(
+                    "<4sI4s", b"RIFF", file_size, b"WAVE"
+                )
+
+                # fmt chunk
+                fmt_chunk = struct.pack(
+                    "<4sIHHIIHH",
+                    b"fmt ",  # chunk id
+                    16,  # chunk size
+                    1,  # audio format (PCM)
+                    channels,  # number of channels
+                    sample_rate,  # sample rate
+                    sample_rate * channels * 2,  # byte rate
+                    channels * 2,  # block align
+                    16,  # bits per sample
+                )
+
+                # data chunk
+                data_chunk = struct.pack("<4sI", b"data", len(audio_data))
+
+                # Записываем файл
+                with open(file_path, "wb") as f:
+                    f.write(wav_header)
+                    f.write(fmt_chunk)
+                    f.write(data_chunk)
+                    f.write(audio_data)
+
+                return len(audio_data)
+
+            data_size = await self.hass.async_add_executor_job(write_wav_file)
+            _LOGGER.info(
+                "Audio recording saved: %s (%d bytes, %.2f seconds)",
+                file_path.name,
+                data_size,
+                data_size / (sample_rate * channels * 2),
+            )
+        except Exception as e:
+            _LOGGER.error("Error saving audio recording: %s", e, exc_info=True)
