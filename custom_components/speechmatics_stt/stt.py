@@ -245,14 +245,24 @@ class SpeechmaticsSTTEntity(SpeechToTextEntity):
                     total_bytes = 0
                     async for chunk in stream:
                         if chunk:
-                            await client.send_audio(chunk)
-                            # Сохраняем чанк для записи в файл
+                            # Сохраняем чанк ПЕРЕД отправкой, чтобы не потерять при ошибке
                             audio_chunks.append(chunk)
                             chunk_count += 1
                             total_bytes += len(chunk)
+                            
+                            try:
+                                await client.send_audio(chunk)
+                            except Exception as send_error:
+                                _LOGGER.warning(
+                                    "Error sending chunk %d to Speechmatics: %s",
+                                    chunk_count,
+                                    send_error,
+                                )
+                                # Чанк уже сохранен, продолжаем обработку
+                            
                             if chunk_count % 100 == 0:
                                 _LOGGER.debug(
-                                    "Sent %d audio chunks (%d bytes total)",
+                                    "Processed %d audio chunks (%d bytes total)",
                                     chunk_count,
                                     total_bytes,
                                 )
